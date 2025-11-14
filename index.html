@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant POS System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .item-buttons {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        .item-buttons button {
+            padding: 15px;
+            background-color: #333;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .item-buttons button:hover {
+            background-color: #444;
+        }
+        input, button, select {
+            padding: 10px;
+            margin: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .order-item input {
+            width: 50px;
+        }
+        .order-item select {
+            width: 150px;
+        }
+        #orderList {
+            margin-top: 20px;
+        }
+        .orderItem {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 5px;
+        }
+        .total {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Restaurant POS System</h1>
+        
+        <div class="item-buttons">
+            <button onclick="addItem('Classic Combo - 950 PKR', 950)">Classic Combo</button>
+            <button onclick="addItem('Zinger Combo - 920 PKR', 920)">Zinger Combo</button>
+            <button onclick="addItem('Cola - 120 PKR', 120)">Cola</button>
+            <button onclick="addItem('Water - 100 PKR', 100)">Water</button>
+            <button onclick="addItem('Classic Beef Burger - 550 PKR', 550, true)">Beef Burger</button>
+            <button onclick="addItem('Chicken Zinger - 520 PKR', 520, true)">Chicken Zinger</button>
+            <button onclick="addItem('Regular Fries - 250 PKR', 250)">Fries</button>
+            <button onclick="addItem('Loaded Fries - 400 PKR', 400)">Loaded Fries</button>
+        </div>
+
+        <div id="orderList"></div>
+        
+        <button onclick="submitOrder()">Submit Order</button>
+
+        <div class="total">
+            Total: <span id="totalAmount">0</span> PKR
+        </div>
+    </div>
+
+    <script>
+        let orders = [];
+
+        function addItem(item, price, isBurger = false) {
+            // Check if the item already exists in the order
+            const existingItem = orders.find(order => order.item === item);
+            if (existingItem) {
+                existingItem.quantity += 1;
+            } else {
+                let addOns = [];
+                let removals = [];
+                let addOnPrice = 0; // Track add-on price for total calculation
+                if (isBurger) {
+                    // If it's a burger, add add-ons/removals options
+                    addOns = ['Cheese', 'Bacon', 'Extra Sauce'];
+                    removals = ['Tomato', 'Onion', 'Lettuce'];
+
+                    // For each add-on, we can assign a price
+                    addOnPrice = {
+                        'Cheese': 50,  // Price for Cheese
+                        'Bacon': 100,  // Price for Bacon
+                        'Extra Sauce': 30 // Price for Extra Sauce
+                    };
+                }
+                orders.push({ item, price, quantity: 1, addOns, removals, addOnPrice });
+            }
+            displayOrders();
+        }
+
+        function displayOrders() {
+            const orderList = document.getElementById('orderList');
+            orderList.innerHTML = ''; // Clear the order list
+            let total = 0;
+
+            orders.forEach((order, index) => {
+                const orderDiv = document.createElement('div');
+                orderDiv.classList.add('order-item');
+
+                let addOnSelect = '';
+                if (order.addOns.length > 0) {
+                    addOnSelect = `
+                        <select onchange="updateAddOns(${index}, this.value)">
+                            <option value="">-- Select Add-on --</option>
+                            ${order.addOns.map(addOn => `<option value="${addOn}">${addOn}</option>`).join('')}
+                        </select>
+                    `;
+                }
+
+                let removalSelect = '';
+                if (order.removals.length > 0) {
+                    removalSelect = `
+                        <select onchange="updateRemovals(${index}, this.value)">
+                            <option value="">-- Select Removal --</option>
+                            ${order.removals.map(removal => `<option value="${removal}">${removal}</option>`).join('')}
+                        </select>
+                    `;
+                }
+
+                orderDiv.innerHTML = `
+                    <span>${order.item} - ${order.price} PKR x ${order.quantity}</span>
+                    ${addOnSelect}
+                    ${removalSelect}
+                    <input type="number" value="${order.quantity}" onchange="updateQuantity(${index}, this.value)" min="1" />
+                    <button onclick="removeItem(${index})">Remove</button>
+                `;
+                orderList.appendChild(orderDiv);
+
+                total += order.price * order.quantity;
+
+                // Add add-on prices to total
+                if (order.addOns.length > 0) {
+                    order.addOns.forEach(addOn => {
+                        total += order.addOnPrice[addOn] || 0; // Add the price of selected add-ons
+                    });
+                }
+            });
+
+            document.getElementById('totalAmount').textContent = total;
+        }
+
+        function updateQuantity(index, quantity) {
+            orders[index].quantity = parseInt(quantity);
+            displayOrders();
+        }
+
+        function updateAddOns(index, addOn) {
+            orders[index].addOns = addOn;
+            displayOrders();
+        }
+
+        function updateRemovals(index, removal) {
+            orders[index].removals = removal;
+            displayOrders();
+        }
+
+        function removeItem(index) {
+            orders.splice(index, 1);
+            displayOrders();
+        }
+
+        function submitOrder() {
+            fetch('/submitOrder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ orders })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Order submitted!');
+                orders = [];
+                displayOrders();
+            });
+        }
+    </script>
+</body>
+</html>
